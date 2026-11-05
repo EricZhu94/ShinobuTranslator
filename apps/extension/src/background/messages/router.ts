@@ -50,6 +50,8 @@ export type BackgroundServices = {
   };
   providers: {
     llm(message: MessageOf<'mt:llm-chat-completions'>): Promise<SuccessOf<'mt:llm-chat-completions'>>;
+    ollamaListModels(message: MessageOf<'mt:ollama-list-models'>): Promise<SuccessOf<'mt:ollama-list-models'>>;
+    ollamaTestConnection(message: MessageOf<'mt:ollama-test-connection'>): Promise<SuccessOf<'mt:ollama-test-connection'>>;
     geminiAppImage(message: MessageOf<'mt:gemini-app-image-translate'>): Promise<SuccessOf<'mt:gemini-app-image-translate'>>;
     geminiApiImage(message: MessageOf<'mt:gemini-api-image-translate'>): Promise<SuccessOf<'mt:gemini-api-image-translate'>>;
   };
@@ -136,9 +138,9 @@ export async function routeBackgroundMessage(
   if (message.type === 'mt:capture-visible-tab') {
     return { ok: true, type: 'mt:capture-visible-tab', ...await services.images.capture(sender) };
   }
-  if (message.type === 'mt:llm-chat-completions') {
-    return services.providers.llm(message);
-  }
+  if (message.type === 'mt:llm-chat-completions') return services.providers.llm(message);
+  if (message.type === 'mt:ollama-list-models') return services.providers.ollamaListModels(message);
+  if (message.type === 'mt:ollama-test-connection') return services.providers.ollamaTestConnection(message);
   if (message.type === 'mt:gemini-app-image-translate') {
     return services.providers.geminiAppImage(message);
   }
