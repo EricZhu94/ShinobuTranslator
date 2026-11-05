@@ -7,6 +7,8 @@ import type {
 import type { ImageDownloadRequest } from '../images/imageDownloader';
 import { LOCAL_PIPELINE_STRUCTURED_CLONE_PROBE_TYPE } from '@shinobu/image-pipeline/protocol';
 import type { ReaderResourceRequest } from '../readers/readerResourceFetcher';
+import { requireExtensionRuntime } from '../../shared/extensionRuntime';
+import { isTrustedPopupSender } from '../extensionControl/credentialDisclosurePolicy';
 
 type MessageOf<T extends RuntimeMessage['type']> = Extract<RuntimeMessage, { type: T }>;
 type SuccessOf<T extends RuntimeResponse['type']> = Extract<RuntimeResponse, { ok: true; type: T }>;
@@ -50,6 +52,8 @@ export type BackgroundServices = {
   };
   providers: {
     llm(message: MessageOf<'mt:llm-chat-completions'>): Promise<SuccessOf<'mt:llm-chat-completions'>>;
+    ollamaListModels(message: MessageOf<'mt:ollama-list-models'>): Promise<SuccessOf<'mt:ollama-list-models'>>;
+    ollamaTestConnection(message: MessageOf<'mt:ollama-test-connection'>): Promise<SuccessOf<'mt:ollama-test-connection'>>;
     geminiAppImage(message: MessageOf<'mt:gemini-app-image-translate'>): Promise<SuccessOf<'mt:gemini-app-image-translate'>>;
     geminiApiImage(message: MessageOf<'mt:gemini-api-image-translate'>): Promise<SuccessOf<'mt:gemini-api-image-translate'>>;
   };
@@ -136,8 +140,15 @@ export async function routeBackgroundMessage(
   if (message.type === 'mt:capture-visible-tab') {
     return { ok: true, type: 'mt:capture-visible-tab', ...await services.images.capture(sender) };
   }
-  if (message.type === 'mt:llm-chat-completions') {
-    return services.providers.llm(message);
+  if (message.type === 'mt:llm-chat-completions') return services.providers.llm(message);
+  if (message.type === 'mt:ollama-list-models' || message.type === 'mt:ollama-test-connection') {
+    const popupUrl = requireExtensionRuntime().getURL('popup.html');
+    if (!isTrustedPopupSender(sender, popupUrl)) {
+      throw new Error('只有扩展设置界面可以访问本机 Ollama');
+    }
+    return message.type === 'mt:ollama-list-models'
+      ? services.providers.ollamaListModels(message)
+      : services.providers.ollamaTestConnection(message);
   }
   if (message.type === 'mt:gemini-app-image-translate') {
     return services.providers.geminiAppImage(message);

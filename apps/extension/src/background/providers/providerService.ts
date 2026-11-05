@@ -37,11 +37,14 @@ import {
   proxyOpenAiChatCompletions,
 } from "../openai/responsesProxy";
 import { getSettings } from "../settings/settingsStore";
+import { listOllamaModels, testOllamaConnection, requestOllamaChatCompletion, resolveOllamaChatCompletionsEndpoint } from '@shinobu/text-translation';
 
 type LlmChatMessage = Extract<RuntimeMessage, { type: "mt:llm-chat-completions" }>;
 type GeminiAppImageMessage = Extract<RuntimeMessage, { type: "mt:gemini-app-image-translate" }>;
 type GeminiApiImageMessage = Extract<RuntimeMessage, { type: "mt:gemini-api-image-translate" }>;
 type LlmChatResponse = Extract<RuntimeResponse, { ok: true; type: "mt:llm-chat-completions" }>;
+type OllamaModelsMessage = Extract<RuntimeMessage, { type: 'mt:ollama-list-models' }>;
+type OllamaTestMessage = Extract<RuntimeMessage, { type: 'mt:ollama-test-connection' }>;
 type GeminiAppImageResponse = Extract<RuntimeResponse, { ok: true; type: "mt:gemini-app-image-translate" }>;
 type GeminiApiImageResponse = Extract<RuntimeResponse, { ok: true; type: "mt:gemini-api-image-translate" }>;
 
@@ -64,6 +67,7 @@ function getLlmProxyEndpoint(proxyConfig: LlmChatCompletionsProxyConfig): string
   if (proxyConfig.provider === 'openai' && proxyConfig.authMode === 'openai_oauth') {
     return openAiCodexResponsesEndpoint;
   }
+  if (proxyConfig.provider === 'ollama') return resolveOllamaChatCompletionsEndpoint(proxyConfig.baseUrl);
   return resolveLlmChatCompletionsEndpoint(proxyConfig.baseUrl);
 }
 
@@ -84,6 +88,15 @@ function getLlmProxyErrorData(error: unknown): Record<string, unknown> {
     };
   }
   return {};
+}
+
+
+export async function handleOllamaListModels(message: OllamaModelsMessage) {
+  return { ok: true as const, type: 'mt:ollama-list-models' as const, models: await listOllamaModels(message.baseUrl) };
+}
+
+export async function handleOllamaTestConnection(message: OllamaTestMessage) {
+  return { ok: true as const, type: 'mt:ollama-test-connection' as const, ...await testOllamaConnection(message.baseUrl) };
 }
 
 export async function handleLlmChatCompletions(message: LlmChatMessage): Promise<LlmChatResponse> {
@@ -111,9 +124,11 @@ export async function handleLlmChatCompletions(message: LlmChatMessage): Promise
     data: baseLogData,
   });
   try {
-    const data = proxyConfig.provider === 'openai' && proxyConfig.authMode === 'openai_oauth'
-      ? await proxyOpenAiChatCompletions(message.body, proxyConfig)
-      : await proxyApiKeyChatCompletions(settings, proxyConfig, message.body);
+    const data = proxyConfig.provider === 'ollama' && proxyConfig.authMode === 'none'
+      ? await requestOllamaChatCompletion(proxyConfig.baseUrl, message.body)
+      : proxyConfig.provider === 'openai' && proxyConfig.authMode === 'openai_oauth'
+        ? await proxyOpenAiChatCompletions(message.body, proxyConfig)
+        : await proxyApiKeyChatCompletions(settings, proxyConfig, message.body);
     await recordBackgroundDiagnosticLog(settings, {
       runId: message.diagnosticRunId,
       level: 'info',

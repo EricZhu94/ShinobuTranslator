@@ -73,6 +73,18 @@ export type LlmChatCompletionsMessage = {
   diagnosticRunId?: string;
 };
 
+export type OllamaModelsMessage = {
+  type: 'mt:ollama-list-models';
+  baseUrl: string;
+};
+
+export type OllamaTestConnectionMessage = {
+  type: 'mt:ollama-test-connection';
+  baseUrl: string;
+};
+
+
+
 type ImageTranslateMessageImage = {
   base64: string;
   contentType: string;
@@ -155,6 +167,8 @@ export type RuntimeMessage =
   | FetchReaderResourceMessage
   | CaptureVisibleTabMessage
   | LlmChatCompletionsMessage
+  | OllamaModelsMessage
+  | OllamaTestConnectionMessage
   | GeminiAppImageTranslateMessage
   | GeminiApiImageTranslateMessage
   | DiagnosticLogEventMessage
@@ -165,6 +179,8 @@ export type RuntimeMessage =
   | ShortcutTranslateHoverMessage;
 
 export type RuntimeSuccessResponse =
+  | { ok: true; type: 'mt:ollama-list-models'; models: import('@shinobu/text-translation').OllamaModelInfo[] }
+  | { ok: true; type: 'mt:ollama-test-connection'; connected: true; version?: string }
   | {
       ok: true;
       type: 'mt:extension-control';
@@ -363,7 +379,7 @@ export function getRuntimeTransportMetadata(error: unknown): {
 }
 
 function isLlmAuthMode(value: unknown): value is LlmAuthMode {
-  return value === 'api_key' || value === 'openai_oauth' || value === 'gemini_app';
+  return value === 'api_key' || value === 'openai_oauth' || value === 'gemini_app' || value === 'none';
 }
 
 function isExtensionControlRuntimeMessage(
@@ -425,6 +441,7 @@ function isLlmChatCompletionsMessage(value: Record<string, unknown>): value is L
     (!isRecord(proxyConfig) ||
       !isLlmProvider(proxyConfig.provider) ||
       !isLlmAuthMode(proxyConfig.authMode) ||
+      (proxyConfig.provider === 'ollama' ? proxyConfig.authMode !== 'none' : proxyConfig.authMode === 'none') ||
       typeof proxyConfig.baseUrl !== 'string' ||
       (proxyConfig.useCustomModel !== undefined && typeof proxyConfig.useCustomModel !== 'boolean') ||
       (proxyConfig.thinkingLevel !== undefined && !isLlmThinkingLevel(proxyConfig.thinkingLevel)))
@@ -521,6 +538,8 @@ export function isRuntimeMessage(value: unknown): value is RuntimeMessage {
     isGeminiAppImageTranslateMessage(value) ||
     isGeminiApiImageTranslateMessage(value) ||
     isDiagnosticLogEventMessage(value) ||
+    (type === 'mt:ollama-list-models' && typeof value.baseUrl === 'string') ||
+    (type === 'mt:ollama-test-connection' && typeof value.baseUrl === 'string') ||
     isLlmChatCompletionsMessage(value)
   );
 }
