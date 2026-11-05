@@ -88,6 +88,16 @@ jobs:
           path.write_text("".join(lines), encoding="utf-8")
           PY
           git diff --check
+          git diff --binary HEAD > "$RUNNER_TEMP/ShinobuTranslator-Phase1-WIP.patch"
+          test -s "$RUNNER_TEMP/ShinobuTranslator-Phase1-WIP.patch"
+          sha256sum "$RUNNER_TEMP/ShinobuTranslator-Phase1-WIP.patch" | tee "$RUNNER_TEMP/ShinobuTranslator-Phase1-WIP.patch.sha256"
+          {
+            echo "Source baseline: c4239a2c653c68f66283b990f96936234c8d7294"
+            echo "Validation branch commit: \${GITHUB_SHA}"
+            echo "Scope: Phase 1 WIP + strict Region ID validation/tests + Ollama Popup UI/browser regression"
+            echo "Status: WIP patch; not merged to master and not a release build"
+          } > "$RUNNER_TEMP/ShinobuTranslator-Phase1-WIP-MANIFEST.txt"
+          git diff --stat HEAD
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -130,6 +140,16 @@ jobs:
 
       - name: Check models.dev thinking capability drift
         run: npm run llm-thinking:check-drift
+
+      - name: Upload Phase 1 source WIP patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-source-wip-patch
+          path: |
+            \${{ runner.temp }}/ShinobuTranslator-Phase1-WIP.patch
+            \${{ runner.temp }}/ShinobuTranslator-Phase1-WIP.patch.sha256
+            \${{ runner.temp }}/ShinobuTranslator-Phase1-WIP-MANIFEST.txt
+          retention-days: 7
 
   chromium-smoke:
     needs: check
