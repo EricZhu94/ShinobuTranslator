@@ -74,15 +74,16 @@ jobs:
           lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
           matches = [
               i for i, line in enumerate(lines)
-              if "getByRole('status')" in line and "Ollama 0.14.0" in line
+              if "getByRole('status')" in line
           ]
-          if len(matches) != 1:
-              raise SystemExit(f"Expected one Ollama status assertion, found {len(matches)}; refusing broad replacement.")
-          lines[matches[0]] = lines[matches[0]].replace(
-              "getByRole('status')",
-              "locator('.ollama-discovery-message')",
-              1,
-          )
+          if len(matches) != 2:
+              raise SystemExit(f"Expected exactly two Ollama status assertions, found {len(matches)}; refusing broad replacement.")
+          for index in matches:
+              lines[index] = lines[index].replace(
+                  "getByRole('status')",
+                  "locator('.ollama-discovery-message')",
+                  1,
+              )
           path.write_text("".join(lines), encoding="utf-8")
           PY
           git diff --check
