@@ -24,6 +24,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Apply isolated Phase 1 WIP and strict Region ID patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            .ci/phase1-region-id-patch/chunk-00.b64 \
+            .ci/phase1-region-id-patch/chunk-01.b64 \
+            .ci/phase1-region-id-patch/chunk-02.b64 \
+            .ci/phase1-region-id-patch/chunk-03.b64 \
+            .ci/phase1-region-id-patch/chunk-04.b64 \
+            .ci/phase1-region-id-patch/chunk-05.b64 \
+            .ci/phase1-region-id-patch/chunk-06.b64 \
+            .ci/phase1-region-id-patch/chunk-07.b64 \
+            .ci/phase1-region-id-patch/chunk-08.b64 \
+            .ci/phase1-region-id-patch/chunk-09.b64 \
+            .ci/phase1-region-id-patch/chunk-10.b64 \
+            | base64 -d > "$RUNNER_TEMP/phase1-region-id.patch.gz"
+          echo "9200b525e67fe688aaf42591e748793bd5871999bb5dafcc3f7a49e18ea90a9e  $RUNNER_TEMP/phase1-region-id.patch.gz" | sha256sum -c -
+          gzip -dc "$RUNNER_TEMP/phase1-region-id.patch.gz" > "$RUNNER_TEMP/phase1-region-id.patch"
+          echo "8c9e30296004c22a92e67c5264b9d59ebc4f984553fc7bc4a5627fa54f6525b1  $RUNNER_TEMP/phase1-region-id.patch" | sha256sum -c -
+          git apply --check "$RUNNER_TEMP/phase1-region-id.patch"
+          git apply "$RUNNER_TEMP/phase1-region-id.patch"
+          git diff --check
+          echo "Applied Phase 1 WIP with strict Region ID validation to clean baseline."
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
