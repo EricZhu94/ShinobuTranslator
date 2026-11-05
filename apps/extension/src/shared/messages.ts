@@ -441,6 +441,7 @@ function isLlmChatCompletionsMessage(value: Record<string, unknown>): value is L
     (!isRecord(proxyConfig) ||
       !isLlmProvider(proxyConfig.provider) ||
       !isLlmAuthMode(proxyConfig.authMode) ||
+      (proxyConfig.provider === 'ollama' ? proxyConfig.authMode !== 'none' : proxyConfig.authMode === 'none') ||
       typeof proxyConfig.baseUrl !== 'string' ||
       (proxyConfig.useCustomModel !== undefined && typeof proxyConfig.useCustomModel !== 'boolean') ||
       (proxyConfig.thinkingLevel !== undefined && !isLlmThinkingLevel(proxyConfig.thinkingLevel)))
