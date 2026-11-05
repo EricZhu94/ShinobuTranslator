@@ -39,12 +39,55 @@ jobs:
           git diff --check
           echo "Patch applied to clean 0.8.7 baseline." | tee "$RUNNER_TEMP/phase1-logs/prepare.log"
           sha256sum package-lock.json | tee "$RUNNER_TEMP/phase1-logs/package-lock.sha256"
+      - name: Fix timeout test rejection-handler timing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("tests/translators/ollamaClient.test.ts")
+          source = path.read_text(encoding="utf-8")
+          old = """      const pending = client.chatCompletions('http://127.0.0.1:11434/v1', requestBody);
+          await vi.advanceTimersByTimeAsync(1_000);
+          await expect(pending).rejects.toMatchObject({
+            name: 'OllamaClientError',
+            code: 'OLLAMA_TIMEOUT',
+            retryable: true,
+          });"""
+          new = """      const pending = client.chatCompletions('http://127.0.0.1:11434/v1', requestBody);
+          // Attach the rejection handler before advancing fake timers. Otherwise
+          // the timeout can reject the promise before Vitest observes its handler,
+          // producing an unhandled-rejection failure despite the later assertion.
+          const timeoutAssertion = expect(pending).rejects.toMatchObject({
+            name: 'OllamaClientError',
+            code: 'OLLAMA_TIMEOUT',
+            retryable: true,
+          });
+          await vi.advanceTimersByTimeAsync(1_000);
+          await timeoutAssertion;"""
+          if old not in source:
+              raise SystemExit("Expected timeout test block was not found; refusing to patch a different source version.")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+          git diff --check
+          echo "Timeout test rejection handler registered before fake timer advancement." | tee "$RUNNER_TEMP/phase1-logs/timeout-test-fix.log"
       - name: Install exact locked dependencies with npm ci
         id: install
         shell: bash
         run: |
           set -euo pipefail
           npm ci --no-audit --no-fund 2>&1 | tee "$RUNNER_TEMP/phase1-logs/npm-ci.log"
+      - name: Read pinned model release
+        id: models
+        shell: bash
+        run: echo "tag=$(jq -r .tag apps/extension/model-release.json)" >> "$GITHUB_OUTPUT"
+      - name: Download and verify pinned models
+        id: modeldownload
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run models:download -- "${{ steps.models.outputs.tag }}" 2>&1 | tee "$RUNNER_TEMP/phase1-logs/model-download.log"
       - name: Full workspace, test and benchmark typecheck
         id: typecheck
         continue-on-error: true
@@ -121,6 +164,20 @@ jobs:
         run: |
           set -o pipefail
           npm run build 2>&1 | tee "$RUNNER_TEMP/phase1-logs/extension-build.log"
+      - name: Audit Firefox lint warnings
+        id: firefoxlint
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run lint:firefox --workspace=@shinobu/extension 2>&1 | tee "$RUNNER_TEMP/phase1-logs/firefox-lint.log"
+      - name: Verify reproducible dual-target build
+        id: reproducible
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check:extension-reproducible 2>&1 | tee "$RUNNER_TEMP/phase1-logs/reproducible-extension-build.log"
       - name: Build web application
         id: webbuild
         continue-on-error: true
@@ -142,6 +199,9 @@ jobs:
           WEBPREFLIGHT: ${{ steps.webpreflight.outcome }}
           AMO: ${{ steps.amo.outcome }}
           EXTBUILD: ${{ steps.extbuild.outcome }}
+          MODEL_DOWNLOAD: ${{ steps.modeldownload.outcome }}
+          FIREFOXLINT: ${{ steps.firefoxlint.outcome }}
+          REPRODUCIBLE: ${{ steps.reproducible.outcome }}
           WEBBUILD: ${{ steps.webbuild.outcome }}
         run: |
           {
@@ -158,10 +218,13 @@ jobs:
             echo "| Licenses | $LICENSES |"
             echo "| Web production preflight | $WEBPREFLIGHT |"
             echo "| AMO metadata | $AMO |"
+            echo "| Pinned model download | $MODEL_DOWNLOAD |"
             echo "| Extension build | $EXTBUILD |"
+            echo "| Firefox lint | $FIREFOXLINT |"
+            echo "| Reproducible dual-target build | $REPRODUCIBLE |"
             echo "| Web build | $WEBBUILD |"
           } >> "$GITHUB_STEP_SUMMARY"
-          for outcome in "$INSTALL" "$TYPECHECK" "$FOCUSED" "$FULLTESTS" "$WEBREG" "$ARCH" "$LICENSES" "$WEBPREFLIGHT" "$AMO" "$EXTBUILD" "$WEBBUILD"; do
+          for outcome in "$INSTALL" "$TYPECHECK" "$FOCUSED" "$FULLTESTS" "$WEBREG" "$ARCH" "$LICENSES" "$WEBPREFLIGHT" "$AMO" "$MODEL_DOWNLOAD" "$EXTBUILD" "$FIREFOXLINT" "$REPRODUCIBLE" "$WEBBUILD"; do
             [[ "$outcome" == "success" ]] || exit 1
           done
       - name: Upload all logs
