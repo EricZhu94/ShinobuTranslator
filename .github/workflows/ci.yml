@@ -65,7 +65,7 @@ jobs:
             | base64 -d > "$RUNNER_TEMP/phase1-popup.patch.xz"
           echo "9345d0b7fab20d6b536dda99549daf19b383de2c847706717ae4d1b35dc82854  $RUNNER_TEMP/phase1-popup.patch.xz" | sha256sum -c -
           xz -dc "$RUNNER_TEMP/phase1-popup.patch.xz" > "$RUNNER_TEMP/phase1-popup.patch"
-          echo "30248a0e952d23365f357a3bc696b6ea85822bc35e1f61e015d7472f52ef3af29  $RUNNER_TEMP/phase1-popup.patch" | sha256sum -c -
+          echo "1003a0e952d23365f357a3bc696b6ea85822bc35e1f61e015d7472f52ef3af29  $RUNNER_TEMP/phase1-popup.patch" | sha256sum -c -
           git apply --check "$RUNNER_TEMP/phase1-popup.patch"
           git apply "$RUNNER_TEMP/phase1-popup.patch"
           git diff --check
