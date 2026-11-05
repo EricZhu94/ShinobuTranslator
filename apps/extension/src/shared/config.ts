@@ -12,6 +12,7 @@ import {
   resolveLlmThinkingLevel,
 } from '@shinobu/text-translation';
 import type { LlmThinkingByModel } from '@shinobu/text-translation';
+import { normalizeOllamaServerUrl } from '@shinobu/text-translation';
 
 export type ImageEngine = 'local' | 'gemini_app';
 export type GeminiAppAuthMode = 'browser_session' | 'cookies_permission';
@@ -42,10 +43,10 @@ function createDefaultProviderProfile(provider: LlmProvider): LlmProviderProfile
   if (isBuiltInProvider(provider)) {
     return {
       apiKey: '',
-      authMode: provider === 'openai' ? 'openai_oauth' : provider === 'gemini' ? 'gemini_app' : 'api_key',
+      authMode: provider === 'ollama' ? 'none' : provider === 'openai' ? 'openai_oauth' : provider === 'gemini' ? 'gemini_app' : 'api_key',
       modelPreset: getDefaultModelPreset(provider),
       modelCustom: '',
-      useCustomModel: false,
+      useCustomModel: provider === 'ollama',
       customBaseUrl: '',
     };
   }
@@ -70,6 +71,7 @@ function createDefaultLlmProfiles(): Record<LlmProvider, LlmProviderProfile> {
     minimax: createDefaultProviderProfile('minimax'),
     mimo: createDefaultProviderProfile('mimo'),
     openai: createDefaultProviderProfile('openai'),
+    ollama: createDefaultProviderProfile('ollama'),
     custom: createDefaultProviderProfile('custom'),
   };
 }
@@ -275,6 +277,7 @@ function normalizeGeminiAppPromptTemplate(value: unknown): string {
 }
 
 function normalizeAuthMode(provider: LlmProvider, value: unknown): LlmAuthMode {
+  if (provider === 'ollama') return 'none';
   if (provider === 'openai') {
     return value === 'api_key' ? 'api_key' : 'openai_oauth';
   }
@@ -317,6 +320,15 @@ function normalizeProviderProfile(
       legacy?.modelFromLegacy === 'nano-banana-pro')
   ) {
     authMode = 'gemini_app';
+  }
+
+  if (provider === 'ollama') {
+    return {
+      apiKey: '', authMode: 'none', modelPreset: '',
+      modelCustom: modelCustomInput || legacy?.modelCustomInput || legacy?.modelFromLegacy || '',
+      useCustomModel: true,
+      customBaseUrl: customBaseUrlInput || legacy?.llmCustomBaseUrl || 'http://127.0.0.1:11434/v1',
+    };
   }
 
   if (isBuiltInProvider(provider)) {
@@ -402,6 +414,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     minimax: normalizeProviderProfile('minimax', rawProfiles.minimax, provider === 'minimax' ? legacy : null),
     mimo: normalizeProviderProfile('mimo', rawProfiles.mimo, provider === 'mimo' ? legacy : null),
     openai: normalizeProviderProfile('openai', rawProfiles.openai, provider === 'openai' ? legacy : null),
+    ollama: normalizeProviderProfile('ollama', rawProfiles.ollama, provider === 'ollama' ? legacy : null),
     custom: normalizeProviderProfile('custom', rawProfiles.custom, provider === 'custom' ? legacy : null),
   };
   const llmThinkingByModel = normalizeLlmThinkingByModel(raw.llmThinkingByModel);
@@ -469,8 +482,9 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
 
 export function resolveLlmBaseUrl(settings: ExtensionSettings): string {
   const profile = settings.llmProfiles[settings.llmProvider];
-  if (settings.llmProvider === 'custom') {
-    return profile.customBaseUrl.trim();
+  if (settings.llmProvider === 'custom') return profile.customBaseUrl.trim();
+  if (settings.llmProvider === 'ollama') {
+    return profile.customBaseUrl.trim() || llmBuiltInProviderDefinitions.ollama.baseUrl;
   }
   return llmBuiltInProviderDefinitions[settings.llmProvider].baseUrl;
 }
@@ -490,6 +504,7 @@ export function resolveLlmModel(settings: ExtensionSettings): string {
 export function requiresLlmApiKey(settings: ExtensionSettings): boolean {
   const profile = settings.llmProfiles[settings.llmProvider];
   return (
+    profile.authMode !== 'none' &&
     !(settings.llmProvider === 'gemini' && profile.authMode === 'gemini_app') &&
     !(settings.llmProvider === 'openai' && profile.authMode === 'openai_oauth')
   );
@@ -540,6 +555,10 @@ export function validateSettings(settings: ExtensionSettings): string | null {
   const profile = settings.llmProfiles[settings.llmProvider];
   if (settings.llmProvider === 'custom' && !profile.customBaseUrl.trim()) {
     return '自定义提供商 Base URL 不能为空';
+  }
+  if (settings.llmProvider === 'ollama') {
+    try { normalizeOllamaServerUrl(resolveLlmBaseUrl(settings)); }
+    catch { return 'Ollama 地址必须是本机 HTTP 地址，例如 http://127.0.0.1:11434'; }
   }
   if (requiresLlmApiKey(settings) && !profile.apiKey.trim()) {
     return 'LLM 模式需要填写 API Key';
