@@ -45,38 +45,40 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           path = Path("tests/translators/ollamaClient.test.ts")
-          source = path.read_text(encoding="utf-8")
-          pattern = re.compile(
-              r"(?m)^(?P<indent>[ \\t]*)const pending = client\\.chatCompletions\\('http://127\\.0\\.0\\.1:11434/v1', requestBody\\);\\n"
-              r"(?P=indent)await vi\\.advanceTimersByTimeAsync\\(1_000\\);\\n"
-              r"(?P=indent)await expect\\(pending\\)\\.rejects\\.toMatchObject\\(\\{\\n"
-              r"(?P=indent)  name: 'OllamaClientError',\\n"
-              r"(?P=indent)  code: 'OLLAMA_TIMEOUT',\\n"
-              r"(?P=indent)  retryable: true,\\n"
-              r"(?P=indent)\\}\\);"
-          )
+          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+          target = [
+              "const pending = client.chatCompletions('http://127.0.0.1:11434/v1', requestBody);",
+              "await vi.advanceTimersByTimeAsync(1_000);",
+              "await expect(pending).rejects.toMatchObject({",
+              "name: 'OllamaClientError',",
+              "code: 'OLLAMA_TIMEOUT',",
+              "retryable: true,",
+              "});",
+          ]
+          matches = [
+              i for i in range(len(lines) - len(target) + 1)
+              if [line.strip() for line in lines[i:i + len(target)]] == target
+          ]
+          if len(matches) != 1:
+              raise SystemExit(f"Expected exactly one timeout test block; found {len(matches)}. No file written.")
 
-          def replacement(match):
-              indent = match.group("indent")
-              return "\\n".join([
-                  indent + "const pending = client.chatCompletions('http://127.0.0.1:11434/v1', requestBody);",
-                  indent + "// Attach the rejection handler before advancing fake timers.",
-                  indent + "const timeoutAssertion = expect(pending).rejects.toMatchObject({",
-                  indent + "  name: 'OllamaClientError',",
-                  indent + "  code: 'OLLAMA_TIMEOUT',",
-                  indent + "  retryable: true,",
-                  indent + "});",
-                  indent + "await vi.advanceTimersByTimeAsync(1_000);",
-                  indent + "await timeoutAssertion;",
-              ])
-
-          updated, count = pattern.subn(replacement, source, count=1)
-          if count != 1:
-              raise SystemExit(f"Expected exactly one timeout test block; found {count}. No file written.")
-          path.write_text(updated, encoding="utf-8")
+          index = matches[0]
+          indent = lines[index][:len(lines[index]) - len(lines[index].lstrip())]
+          replacement = [
+              "const pending = client.chatCompletions('http://127.0.0.1:11434/v1', requestBody);",
+              "// Attach the rejection handler before advancing fake timers.",
+              "const timeoutAssertion = expect(pending).rejects.toMatchObject({",
+              "name: 'OllamaClientError',",
+              "code: 'OLLAMA_TIMEOUT',",
+              "retryable: true,",
+              "});",
+              "await vi.advanceTimersByTimeAsync(1_000);",
+              "await timeoutAssertion;",
+          ]
+          lines[index:index + len(target)] = [indent + line + "\n" for line in replacement]
+          path.write_text("".join(lines), encoding="utf-8")
           print("Updated timeout test block exactly once.")
           PY
           git diff --check
