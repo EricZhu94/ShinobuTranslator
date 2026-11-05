@@ -42,6 +42,8 @@ import {
   handleGeminiApiImageTranslate,
   handleGeminiAppImageTranslate,
   handleLlmChatCompletions,
+  handleOllamaListModels,
+  handleOllamaTestConnection,
 } from './providers/providerService';
 import { routeBackgroundMessage } from './messages/router';
 import type { BackgroundServices } from './messages/router';
@@ -111,6 +113,8 @@ const services: BackgroundServices = {
   },
   providers: {
     llm: handleLlmChatCompletions,
+    ollamaListModels: handleOllamaListModels,
+    ollamaTestConnection: handleOllamaTestConnection,
     geminiAppImage: handleGeminiAppImageTranslate,
     geminiApiImage: async (message) => handleGeminiApiImageTranslate(
       message,
