@@ -146,9 +146,9 @@ jobs:
         with:
           name: phase1-source-wip-patch
           path: |
-            \${{ runner.temp }}/ShinobuTranslator-Phase1-WIP.patch
-            \${{ runner.temp }}/ShinobuTranslator-Phase1-WIP.patch.sha256
-            \${{ runner.temp }}/ShinobuTranslator-Phase1-WIP-MANIFEST.txt
+            ${{ runner.temp }}/ShinobuTranslator-Phase1-WIP.patch
+            ${{ runner.temp }}/ShinobuTranslator-Phase1-WIP.patch.sha256
+            ${{ runner.temp }}/ShinobuTranslator-Phase1-WIP-MANIFEST.txt
           retention-days: 7
 
   chromium-smoke:
