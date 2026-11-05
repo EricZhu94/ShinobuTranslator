@@ -75,9 +75,10 @@ jobs:
           matches = [
               i for i, line in enumerate(lines)
               if "getByRole('status')" in line
+              and ("Ollama 0.14.0" in line or "发现 2 个本机模型" in line)
           ]
           if len(matches) != 2:
-              raise SystemExit(f"Expected exactly two Ollama status assertions, found {len(matches)}; refusing broad replacement.")
+              raise SystemExit(f"Expected both Ollama discovery assertions, found {len(matches)}; refusing broad replacement.")
           for index in matches:
               lines[index] = lines[index].replace(
                   "getByRole('status')",
