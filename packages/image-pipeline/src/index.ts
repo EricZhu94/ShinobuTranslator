@@ -6,6 +6,7 @@ import {
   type TranslationTask,
 } from '@shinobu/translator-core';
 import type {
+  LlmAuthMode,
   LlmProvider,
   LlmThinkingLevel,
   TextTranslator,
@@ -99,7 +100,7 @@ export type PipelineConfig = {
   targetLang: string;
   translator: 'google_web' | 'llm';
   llmProvider: LlmProvider;
-  llmAuthMode: 'api_key' | 'openai_oauth' | 'gemini_app';
+  llmAuthMode: LlmAuthMode;
   llmBaseUrl: string;
   llmModel: string;
   llmUseCustomModel?: boolean;
