@@ -695,3 +695,63 @@ describe("OCR engine settings", () => {
     expect(toPipelineConfig(medium).ocrEngine).toBe("paddleocr_v6_medium");
   });
 });
+
+
+describe('Ollama local provider settings', () => {
+  it('normalizes Ollama as a no-auth provider and preserves its local server/model settings', () => {
+    const settings = normalizeSettings({
+      translator: 'llm',
+      llmProvider: 'ollama',
+      llmProfiles: {
+        ollama: {
+          authMode: 'api_key',
+          apiKey: 'must-not-be-kept',
+          modelCustom: 'qwen3.5:9b',
+          useCustomModel: false,
+          customBaseUrl: 'http://localhost:11434/v1',
+        },
+      },
+    });
+    expect(settings.llmProvider).toBe('ollama');
+    expect(settings.llmProfiles.ollama).toMatchObject({
+      authMode: 'none',
+      apiKey: '',
+      modelPreset: '',
+      modelCustom: 'qwen3.5:9b',
+      useCustomModel: true,
+      customBaseUrl: 'http://localhost:11434/v1',
+    });
+    expect(requiresLlmApiKey(settings)).toBe(false);
+    expect(resolveLlmBaseUrl(settings)).toBe('http://localhost:11434/v1');
+    expect(validateSettings(settings)).toBeNull();
+    expect(toPipelineConfig(settings)).toMatchObject({
+      llmProvider: 'ollama',
+      llmAuthMode: 'none',
+      llmBaseUrl: 'http://localhost:11434/v1',
+      llmModel: 'qwen3.5:9b',
+      llmUseCustomModel: true,
+    });
+    expect(normalizeSettings(settings)).toEqual(settings);
+  });
+
+  it('requires a selected model and rejects non-loopback Ollama endpoints', () => {
+    const missingModel = normalizeSettings({ translator: 'llm', llmProvider: 'ollama' });
+    expect(validateSettings(missingModel)).toBe('LLM 模型不能为空');
+    const remote = normalizeSettings({
+      translator: 'llm',
+      llmProvider: 'ollama',
+      llmProfiles: { ollama: { modelCustom: 'qwen3.5:9b', customBaseUrl: 'http://192.168.1.20:11434' } },
+    });
+    expect(validateSettings(remote)).toContain('Ollama 地址必须是本机 HTTP 地址');
+  });
+
+  it('adds Ollama without changing the default cloud provider', () => {
+    expect(normalizeSettings({}).llmProvider).toBe('deepseek');
+    expect(llmBuiltInProviderDefinitions.ollama).toMatchObject({
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      models: [],
+      defaultAuthMode: 'none',
+    });
+    expect(llmProviderOptions.find((option) => option.value === 'ollama')?.label).toContain('Ollama');
+  });
+});
