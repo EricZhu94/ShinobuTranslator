@@ -56,8 +56,19 @@ jobs:
               raise SystemExit("Expected exactly one unused test import; refusing to modify an unexpected source.")
           path.write_text(source.replace(old, new, 1), encoding="utf-8")
           PY
+          echo "Applied strict Region ID patch to clean baseline."
+          cat \
+            .ci/phase1-region-id-popup-patch/chunk-00.b64 \
+            .ci/phase1-region-id-popup-patch/chunk-01.b64 \
+            .ci/phase1-region-id-popup-patch/chunk-02.b64 \
+            .ci/phase1-region-id-popup-patch/chunk-03.b64 \
+            | base64 -d > "$RUNNER_TEMP/phase1-popup.patch.xz"
+          echo "9345d0b7fab20d6b536dda99549daf19b383de2c847706717ae4d1b35dc82854  $RUNNER_TEMP/phase1-popup.patch.xz" | sha256sum -c -
+          xz -dc "$RUNNER_TEMP/phase1-popup.patch.xz" > "$RUNNER_TEMP/phase1-popup.patch"
+          echo "30248a0e952d23365f357a3bc696b6ea85822bc35e1f61e015d7472f52ef3af29  $RUNNER_TEMP/phase1-popup.patch" | sha256sum -c -
+          git apply --check "$RUNNER_TEMP/phase1-popup.patch"
+          git apply "$RUNNER_TEMP/phase1-popup.patch"
           git diff --check
-          echo "Applied Phase 1 WIP with strict Region ID validation to clean baseline."
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -76,6 +87,12 @@ jobs:
 
       - name: Run quality gate
         run: npm run check
+
+      - name: Install Playwright Chromium for Popup UI validation
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate Ollama Popup UI on Chromium
+        run: npm run check:popup-ui -- --browser=chromium
 
       - name: Audit Firefox lint warnings
         run: npm run lint:firefox --workspace=@shinobu/extension
