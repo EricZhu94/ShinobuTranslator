@@ -46,6 +46,16 @@ jobs:
           echo "8c9e30296004c22a92e67c5264b9d59ebc4f984553fc7bc4a5627fa54f6525b1  $RUNNER_TEMP/phase1-region-id.patch" | sha256sum -c -
           git apply --check "$RUNNER_TEMP/phase1-region-id.patch"
           git apply "$RUNNER_TEMP/phase1-region-id.patch"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("tests/translators/llm.test.ts")
+          source = path.read_text(encoding="utf-8")
+          old = "import { LlmColumnsParseError, LlmRegionIdValidationError, llmTranslate, llmTranslateRegions }"
+          new = "import { LlmRegionIdValidationError, llmTranslate, llmTranslateRegions }"
+          if source.count(old) != 1:
+              raise SystemExit("Expected exactly one unused test import; refusing to modify an unexpected source.")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
           git diff --check
           echo "Applied Phase 1 WIP with strict Region ID validation to clean baseline."
       - name: Setup Node.js
