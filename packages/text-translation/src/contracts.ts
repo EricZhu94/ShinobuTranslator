@@ -8,9 +8,10 @@ export type LlmProvider =
   | 'minimax'
   | 'mimo'
   | 'openai'
+  | 'ollama'
   | 'custom';
 
-export type LlmAuthMode = 'api_key' | 'openai_oauth' | 'gemini_app';
+export type LlmAuthMode = 'api_key' | 'openai_oauth' | 'gemini_app' | 'none';
 export type LlmThinkingLevel = 'off' | 'on' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export type TranslationReferenceContext = {
