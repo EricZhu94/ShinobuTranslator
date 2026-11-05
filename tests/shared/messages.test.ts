@@ -37,6 +37,22 @@ describe("isRuntimeMessage", () => {
     expect(isRuntimeMessage(message('valid text', 'unknown'))).toBe(false);
   });
 
+  it('accepts Ollama no-auth chat and local discovery protocol messages', () => {
+    expect(isRuntimeMessage({
+      type: 'mt:llm-chat-completions',
+      body: { model: 'qwen3.5:9b', messages: [{ role: 'user', content: 'translate' }] },
+      proxyConfig: { provider: 'ollama', authMode: 'none', baseUrl: 'http://127.0.0.1:11434/v1' },
+    })).toBe(true);
+    expect(isRuntimeMessage({ type: 'mt:ollama-list-models', baseUrl: 'http://127.0.0.1:11434' })).toBe(true);
+    expect(isRuntimeMessage({ type: 'mt:ollama-test-connection', baseUrl: 'http://localhost:11434' })).toBe(true);
+    expect(isRuntimeMessage({ type: 'mt:ollama-list-models', baseUrl: 42 })).toBe(false);
+    expect(isRuntimeMessage({
+      type: 'mt:llm-chat-completions',
+      body: { model: 'qwen3.5:9b', messages: [] },
+      proxyConfig: { provider: 'ollama', authMode: 'api_key', baseUrl: 'http://127.0.0.1:11434/v1' },
+    })).toBe(false);
+  });
+
   it("accepts image and screenshot translation runtime messages", () => {
     expect(isRuntimeMessage({ type: "mt:download-image", imageUrl: "https://example.com/a.png" })).toBe(true);
     expect(isRuntimeMessage({
