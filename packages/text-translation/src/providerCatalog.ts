@@ -68,6 +68,12 @@ export const llmBuiltInProviderDefinitions: Record<
     models: ['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna'],
     defaultAuthMode: 'openai_oauth',
   },
+  ollama: {
+    label: 'Ollama（本地模型）', webLabel: 'Ollama',
+    baseUrl: 'http://127.0.0.1:11434/v1',
+    models: [],
+    defaultAuthMode: 'none',
+  },
 };
 
 export const llmProviderOptions: Array<{
