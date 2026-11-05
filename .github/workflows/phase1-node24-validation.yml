@@ -1,0 +1,167 @@
+name: Phase 1 Node 24 validation
+on:
+  push:
+    branches:
+      - ci/phase1-node24-validation-2026-11-05
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout clean 0.8.7 baseline plus validation harness
+        uses: actions/checkout@v4
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.1
+          cache: npm
+      - name: Apply Phase 1 WIP patch to the clean baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/phase1-logs"
+          node --version
+          npm --version
+          node -e "const p=require('./package.json'); if (!/^\\^?24\\./.test(p.engines.node)) process.exit(1);"
+          gzip -dc .ci/phase1-review-wip.patch.gz > "$RUNNER_TEMP/phase1-review.patch"
+          echo "7768d07fbe9f7db376be2253905bb79e469aa75e11c0bd25cc64631e1c3e8968  $RUNNER_TEMP/phase1-review.patch" | sha256sum -c -
+          git apply --check "$RUNNER_TEMP/phase1-review.patch"
+          git apply "$RUNNER_TEMP/phase1-review.patch"
+          git diff --check
+          echo "Patch applied to clean 0.8.7 baseline." | tee "$RUNNER_TEMP/phase1-logs/prepare.log"
+          sha256sum package-lock.json | tee "$RUNNER_TEMP/phase1-logs/package-lock.sha256"
+      - name: Install exact locked dependencies with npm ci
+        id: install
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund 2>&1 | tee "$RUNNER_TEMP/phase1-logs/npm-ci.log"
+      - name: Full workspace, test and benchmark typecheck
+        id: typecheck
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee "$RUNNER_TEMP/phase1-logs/typecheck.log"
+      - name: Focused Phase 1 Vitest coverage
+        id: focused
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npx vitest run \
+            tests/translators/ollamaClient.test.ts \
+            tests/translators/llm.test.ts \
+            tests/shared/config.test.ts \
+            tests/shared/messages.test.ts \
+            tests/shared/localPipelineProtocol.test.ts \
+            tests/background/llmProxy.test.ts \
+            tests/background/providerService.test.ts \
+            tests/background/settingsStoreAtomicity.test.ts \
+            tests/shared/diagnosticLog.test.ts \
+            tests/shared/llmThinking.test.ts \
+            tests/shared/webConfig.test.ts \
+            tests/pipeline/translate.test.ts \
+            2>&1 | tee "$RUNNER_TEMP/phase1-logs/focused-vitest.log"
+      - name: Full Vitest suite
+        id: fulltests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/phase1-logs/full-vitest.log"
+      - name: Web regression tests
+        id: webreg
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check:web-regression 2>&1 | tee "$RUNNER_TEMP/phase1-logs/web-regression.log"
+      - name: Architecture boundaries
+        id: architecture
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check:architecture 2>&1 | tee "$RUNNER_TEMP/phase1-logs/architecture.log"
+      - name: Production license checks
+        id: licenses
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check:licenses 2>&1 | tee "$RUNNER_TEMP/phase1-logs/licenses.log"
+      - name: Web production preflight
+        id: webpreflight
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check:web-production 2>&1 | tee "$RUNNER_TEMP/phase1-logs/web-preflight.log"
+      - name: AMO metadata checks
+        id: amo
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check:amo-metadata 2>&1 | tee "$RUNNER_TEMP/phase1-logs/amo-metadata.log"
+      - name: Build complete Chrome and Firefox extensions
+        id: extbuild
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee "$RUNNER_TEMP/phase1-logs/extension-build.log"
+      - name: Build web application
+        id: webbuild
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build:web 2>&1 | tee "$RUNNER_TEMP/phase1-logs/web-build.log"
+      - name: Publish validation summary
+        if: always()
+        shell: bash
+        env:
+          INSTALL: \${{ steps.install.outcome }}
+          TYPECHECK: \${{ steps.typecheck.outcome }}
+          FOCUSED: \${{ steps.focused.outcome }}
+          FULLTESTS: \${{ steps.fulltests.outcome }}
+          WEBREG: \${{ steps.webreg.outcome }}
+          ARCH: \${{ steps.architecture.outcome }}
+          LICENSES: \${{ steps.licenses.outcome }}
+          WEBPREFLIGHT: \${{ steps.webpreflight.outcome }}
+          AMO: \${{ steps.amo.outcome }}
+          EXTBUILD: \${{ steps.extbuild.outcome }}
+          WEBBUILD: \${{ steps.webbuild.outcome }}
+        run: |
+          {
+            echo "## ShinobuTranslator Phase 1 — Node 24 validation"
+            echo ""
+            echo "| Gate | Outcome |"
+            echo "|---|---|"
+            echo "| npm ci | $INSTALL |"
+            echo "| npm run typecheck | $TYPECHECK |"
+            echo "| Focused Phase 1 Vitest | $FOCUSED |"
+            echo "| Full Vitest suite | $FULLTESTS |"
+            echo "| Web regression | $WEBREG |"
+            echo "| Architecture | $ARCH |"
+            echo "| Licenses | $LICENSES |"
+            echo "| Web production preflight | $WEBPREFLIGHT |"
+            echo "| AMO metadata | $AMO |"
+            echo "| Extension build | $EXTBUILD |"
+            echo "| Web build | $WEBBUILD |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for outcome in "$INSTALL" "$TYPECHECK" "$FOCUSED" "$FULLTESTS" "$WEBREG" "$ARCH" "$LICENSES" "$WEBPREFLIGHT" "$AMO" "$EXTBUILD" "$WEBBUILD"; do
+            [[ "$outcome" == "success" ]] || exit 1
+          done
+      - name: Upload all logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shinobu-phase1-node24-validation-logs
+          path: \${{ runner.temp }}/phase1-logs/
+          if-no-files-found: warn
+          retention-days: 14
