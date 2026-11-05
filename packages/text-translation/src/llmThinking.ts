@@ -264,7 +264,7 @@ export function adaptLlmThinkingChatCompletionRequest(
   body: LlmChatCompletionRequestBody,
   context: LlmThinkingRequestContext,
 ): LlmChatCompletionRequestBody {
-  if (context.provider === 'custom' || context.useCustomModel) {
+  if (context.provider === 'custom' || context.provider === 'ollama' || context.useCustomModel) {
     return { ...body };
   }
 
