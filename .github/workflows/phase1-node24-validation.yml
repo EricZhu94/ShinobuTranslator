@@ -17,15 +17,22 @@ jobs:
         with:
           node-version: 24.11.1
           cache: npm
-      - name: Apply Phase 1 WIP patch to the clean baseline
+      - name: Reassemble and verify Phase 1 WIP patch
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/phase1-logs"
-          node --version
-          npm --version
-          node -e "const p=require('./package.json'); if (!/^\\^?24\\./.test(p.engines.node)) process.exit(1);"
-          gzip -dc .ci/phase1-review-wip.patch.gz > "$RUNNER_TEMP/phase1-review.patch"
+          node --version | tee "$RUNNER_TEMP/phase1-logs/node-version.log"
+          npm --version | tee "$RUNNER_TEMP/phase1-logs/npm-version.log"
+          node -e 'if (Number(process.versions.node.split(".")[0]) !== 24) process.exit(1)'
+          cat \
+            .ci/phase1-patch/part-01.b64 \
+            .ci/phase1-patch/part-02a.b64 \
+            .ci/phase1-patch/part-02b.b64 \
+            .ci/phase1-patch/part-03.b64 \
+            .ci/phase1-patch/part-04.b64 | base64 -d > "$RUNNER_TEMP/phase1-review.patch.gz"
+          echo "cc428084869777f5ab9b048405c22aab8e791f3fcd9d6d0259febbb9c4fa510a  $RUNNER_TEMP/phase1-review.patch.gz" | sha256sum -c -
+          gzip -dc "$RUNNER_TEMP/phase1-review.patch.gz" > "$RUNNER_TEMP/phase1-review.patch"
           echo "7768d07fbe9f7db376be2253905bb79e469aa75e11c0bd25cc64631e1c3e8968  $RUNNER_TEMP/phase1-review.patch" | sha256sum -c -
           git apply --check "$RUNNER_TEMP/phase1-review.patch"
           git apply "$RUNNER_TEMP/phase1-review.patch"
@@ -125,17 +132,17 @@ jobs:
         if: always()
         shell: bash
         env:
-          INSTALL: \${{ steps.install.outcome }}
-          TYPECHECK: \${{ steps.typecheck.outcome }}
-          FOCUSED: \${{ steps.focused.outcome }}
-          FULLTESTS: \${{ steps.fulltests.outcome }}
-          WEBREG: \${{ steps.webreg.outcome }}
-          ARCH: \${{ steps.architecture.outcome }}
-          LICENSES: \${{ steps.licenses.outcome }}
-          WEBPREFLIGHT: \${{ steps.webpreflight.outcome }}
-          AMO: \${{ steps.amo.outcome }}
-          EXTBUILD: \${{ steps.extbuild.outcome }}
-          WEBBUILD: \${{ steps.webbuild.outcome }}
+          INSTALL: ${{ steps.install.outcome }}
+          TYPECHECK: ${{ steps.typecheck.outcome }}
+          FOCUSED: ${{ steps.focused.outcome }}
+          FULLTESTS: ${{ steps.fulltests.outcome }}
+          WEBREG: ${{ steps.webreg.outcome }}
+          ARCH: ${{ steps.architecture.outcome }}
+          LICENSES: ${{ steps.licenses.outcome }}
+          WEBPREFLIGHT: ${{ steps.webpreflight.outcome }}
+          AMO: ${{ steps.amo.outcome }}
+          EXTBUILD: ${{ steps.extbuild.outcome }}
+          WEBBUILD: ${{ steps.webbuild.outcome }}
         run: |
           {
             echo "## ShinobuTranslator Phase 1 — Node 24 validation"
@@ -162,6 +169,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: shinobu-phase1-node24-validation-logs
-          path: \${{ runner.temp }}/phase1-logs/
+          path: ${{ runner.temp }}/phase1-logs/
           if-no-files-found: warn
           retention-days: 14
