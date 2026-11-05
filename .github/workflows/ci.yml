@@ -68,6 +68,23 @@ jobs:
           echo "1003a0e952d23365f357a3bc696b6ea85822bc35e1f61e015d7472f52ef3af29  $RUNNER_TEMP/phase1-popup.patch" | sha256sum -c -
           git apply --check "$RUNNER_TEMP/phase1-popup.patch"
           git apply "$RUNNER_TEMP/phase1-popup.patch"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("tests/extension/popupUi.browser.ts")
+          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+          matches = [
+              i for i, line in enumerate(lines)
+              if "getByRole('status')" in line and "Ollama 0.14.0" in line
+          ]
+          if len(matches) != 1:
+              raise SystemExit(f"Expected one Ollama status assertion, found {len(matches)}; refusing broad replacement.")
+          lines[matches[0]] = lines[matches[0]].replace(
+              "getByRole('status')",
+              "locator('.ollama-discovery-message')",
+              1,
+          )
+          path.write_text("".join(lines), encoding="utf-8")
+          PY
           git diff --check
       - name: Setup Node.js
         uses: actions/setup-node@v4
